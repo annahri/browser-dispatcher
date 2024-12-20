@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# browser-dispatcher v1.0
+# dispatches urls to the predefined browser instead of relying on the default one
+# by ahfas.annahri@gmail.com
+#
+# Changelog:
+# v1.0 - 20/12/2024:
+#   - Initial release
+
+config_file="${HOME}/.config/browser-dispatcher/config.yaml"
+log_file="/tmp/browser-dispatcher.log"
+url="$1"
+
+get_browser() {
+  local url="$1"
+  local -n return_browser="$2"
+  local -n return_args="$3"
+  local rule hostname
+
+  if [[ -n "$return_browser" ]]; then
+    return
+  fi
+
+  hostname="$(sed -E 's|https?://([a-zA-Z0-9._ -]+)/.*|\1|' <<< "$url")"
+  rule="$(
+    yq \
+      --arg hostname "$hostname" \
+      '.rules[] | select(.urls[] | test($hostname))' \
+      "$config_file"
+  )"
+
+  if [[ -z "$rule" ]]; then
+    echo "Rule is empty" >> "$log_file"
+    return_browser="$(yq -r '.default_browser' "$config_file")"
+    readarray -t return_args < <(yq -r '.default_args[]' "$config_file")
+  else
+    return_browser="$(echo "$rule" | yq -r '.browser')"
+    readarray -t return_args < <(echo "$rule" | yq -r '.args[]')
+  fi
+}
+
+main() {
+  url="$1"
+  browser=""
+  args=()
+
+  if [[ "$#" -eq 0 ]]; then
+    echo "browser-dispatcher v1.0"
+    echo
+    echo "usage: browser-dispatcher <url>"
+    exit 1
+  fi
+
+  # Check if config exists
+  if [[ ! -f "$config_file" ]]; then
+    echo -e "Config file missing. Using defaults."
+    browser="xdg-open"
+  fi
+
+  get_browser "$1" browser args
+
+  "$browser" "${args[@]}" "$url"
+}
+
+main "$@"

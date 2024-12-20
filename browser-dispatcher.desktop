@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Browser Dispatcher
+Exec=browser-dispatcher %u
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+Type=Application
+NoDisplay=true

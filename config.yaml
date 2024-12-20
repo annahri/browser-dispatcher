@@ -1,0 +1,19 @@
+# Sample config
+rules:
+  - urls:
+      - work-domain.com
+      - another-work-domain.org
+    browser: firefox
+    args: 
+      - --option1
+      - --option2
+
+  - urls:
+      - youtube.com
+      - example.com
+    browser: google-chrome
+    args:
+      - --profile-directory=Profile 2
+
+default_browser: zen-browser
+default_args: []
