@@ -1,19 +1,22 @@
 # Sample config
 rules:
-  - urls:
+  - name: Work
+    urls:
       - work-domain.com
       - another-work-domain.org
+      - ([a-z0-9_ -]+[.])*example.com # Match all subdomains and the apex
     browser: firefox
     args: 
       - --option1
       - --option2
 
-  - urls:
+  - name: Freelance
+    urls:
       - youtube.com
-      - example.com
+      - example.net
     browser: google-chrome
     args:
-      - --profile-directory=Profile 2
+      - --profile-directory=Profile 2 # Do not quote
 
 default_browser: zen-browser
 default_args: []

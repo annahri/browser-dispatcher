@@ -1,52 +1,101 @@
 #!/bin/bash
 
-# browser-dispatcher v1.0
+# browser-dispatcher v1.1.0
 # dispatches urls to the predefined browser instead of relying on the default one
 # by ahfas.annahri@gmail.com
 #
 # Changelog:
-# v1.0 - 20/12/2024:
-#   - Initial release
+# v1.1.0 - 23/12/2024:
+#  - Added regex support for rule URLs.
+#  - Added logging mechanism.
+#  - Added bash strict mode.
+#  - Added error handler if the browser is invalid.
+#  - Changed log path.
+#  - Changed no config exit.
+#  - Refactored: Extracted `get_rule()` from `get_browser()`, which now takes a rule instead of a URL.
+# v1.0.0 - 20/12/2024:
+#  - Initial release
 
-config_file="${HOME}/.config/browser-dispatcher/config.yaml"
-log_file="/tmp/browser-dispatcher.log"
-url="$1"
+set -o errexit
+set -o pipefail
+
+config_dir="${HOME}/.config/browser-dispatcher"
+config_file="${config_dir}/config.yaml"
+log_file="${config_dir}/browser-dispatcher.log"
+version="v1.1"
+
+log() {
+  local level
+  local message
+
+  case "$1" in
+    INFO | WARN | ERR | CRIT) level="$1" ;;
+    *)
+      echo "Invalid level"
+      exit 10
+      ;;
+  esac
+  shift
+
+  message="$*"
+
+  printf '[%s] [%s] %s\n' "$(date --iso-8601=seconds)" "${level}" "${message}" >> "$log_file"
+}
+
+logerr() {
+  while read -r line; do
+    log ERR "$line"
+  done
+}
+
+get_rule() {
+  local url="$1"
+  local -a urls
+  local hostname match
+
+  readarray -t urls < <(yq -r '.rules[] | .urls[]' "$config_file")
+  hostname="$(sed -E 's|https?://([a-zA-Z0-9._ -]+)/.*|\1|' <<< "$url")"
+
+  # Find matched url
+  for _url in "${urls[@]}"; do
+    if [[ "$hostname" =~ $_url ]]; then
+      match="${_url}"
+      break
+    fi
+  done
+
+  # Construct default rule if no match
+  if [[ -z "$match" ]]; then
+    yq -y -c '{urls: [".*"], browser: .default_browser, args: .default_args, name: "Fallback" }' "$config_file"
+    return
+  fi
+
+  yq -c --arg hostname "$match" '.rules[] | select(.urls[] | test($hostname))' "$config_file"
+}
 
 get_browser() {
-  local url="$1"
+  local rule="$1"
   local -n return_browser="$2"
   local -n return_args="$3"
-  local rule hostname
+  local rule
 
   if [[ -n "$return_browser" ]]; then
     return
   fi
 
-  hostname="$(sed -E 's|https?://([a-zA-Z0-9._ -]+)/.*|\1|' <<< "$url")"
-  rule="$(
-    yq \
-      --arg hostname "$hostname" \
-      '.rules[] | select(.urls[] | test($hostname))' \
-      "$config_file"
-  )"
-
-  if [[ -z "$rule" ]]; then
-    echo "Rule is empty" >> "$log_file"
-    return_browser="$(yq -r '.default_browser' "$config_file")"
-    readarray -t return_args < <(yq -r '.default_args[]' "$config_file")
-  else
-    return_browser="$(echo "$rule" | yq -r '.browser')"
-    readarray -t return_args < <(echo "$rule" | yq -r '.args[]')
-  fi
+  return_browser="$(echo "$rule" | yq -r '.browser')"
+  readarray -t return_args < <(echo "$rule" | yq -r '.args[]')
 }
 
 main() {
-  url="$1"
-  browser=""
-  args=()
+  local url="$1"
+  local browser rule
+  local args=()
+
+  exec 2> >(logerr >&2)
 
   if [[ "$#" -eq 0 ]]; then
-    echo "browser-dispatcher v1.0"
+    echo "browser-dispatcher ${version}"
     echo
     echo "usage: browser-dispatcher <url>"
     exit 1
@@ -54,11 +103,26 @@ main() {
 
   # Check if config exists
   if [[ ! -f "$config_file" ]]; then
-    echo -e "Config file missing. Using defaults."
-    browser="xdg-open"
+    echo -e "Config file is missing."
+    exit 1
   fi
 
-  get_browser "$1" browser args
+  echo "$url"
+  rule=$(get_rule "$url")
+  rule_name=$(echo "$rule" | yq -r '.name')
+  url_display="$url"
+
+  if [[ "${#url}" -ge 255 ]]; then
+    url_display="${url:0:255}...(truncated)"
+  fi
+
+  get_browser "$rule" browser args
+  log "INFO" "Rule=\"$rule_name\" Browser=\"$browser\" Url=\"${url_display}\""
+
+  if ! command -v "$browser" &> /dev/null; then
+    notify-send "Browser Dispatcher ${version}" "Invalid browser: $browser"
+    exit
+  fi
 
   "$browser" "${args[@]}" "$url"
 }
