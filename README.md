@@ -15,10 +15,12 @@ Browser Dispatcher is a shell script that allows users to open URLs in predefine
 ## Installation
 
 1. Clone the repository
-2. Put the script somewhere in your `PATH`, e.g. `~/.local/bin`
-3. Put the `.desktop` file in `~/.local/share/applications` 
-4. Execute `xdg-mime default browser-dispatcher x-scheme-handler/http x-scheme-handler/https`
-5. Done
+1. Put the script somewhere in your `PATH`, e.g. `~/.local/bin`
+1. Put the `.desktop` file in `~/.local/share/applications` 
+1. Execute `xdg-mime default browser-dispatcher x-scheme-handler/http x-scheme-handler/https`
+1. Copy the sample config file to `~/.config/browser-dispatcher/config.yaml`
+1. Modify the config to your preference
+1. Done
 
 or just run `make install`
 
